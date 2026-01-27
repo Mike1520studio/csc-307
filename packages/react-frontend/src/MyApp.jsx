@@ -1,10 +1,18 @@
-// src/MyApp.jsx
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import Table from "./Table";
 import Form from "./Form";
 
+const API = "http://localhost:3000";
+
 function MyApp() {
-  const [characters, setCharacters] = useState([]); // empty state :contentReference[oaicite:3]{index=3}
+  const [characters, setCharacters] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API}/users`)
+      .then((res) => res.json())
+      .then((data) => setCharacters(data.users_list))
+      .catch((err) => console.log(err));
+  }, []);
 
   function removeCharacter(index) {
     const updated = characters.filter((_, i) => i !== index);
@@ -17,7 +25,7 @@ function MyApp() {
 
   return (
     <div className="container">
-      <Form handleSubmit={updateList} /> {/* pass function as prop :contentReference[oaicite:4]{index=4} */}
+      <Form handleSubmit={updateList} />
       <Table characterData={characters} removeCharacter={removeCharacter} />
     </div>
   );
