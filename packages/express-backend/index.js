@@ -1,21 +1,28 @@
 const express = require("express");
 const cors = require("cors");
+const dotenv = require("dotenv");
+const mongoose = require("mongoose");
+
+dotenv.config();
+
+console.log("ENV LOADED:", process.env.MONGO_CONNECTION_STRING ? "YES" : "NO");
+
+const { MONGO_CONNECTION_STRING } = process.env;
+
+mongoose
+  .connect(MONGO_CONNECTION_STRING + "users")
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.log("MONGO ERROR:", err.message));
+
+const User = require("./models/user");
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
 app.use(cors());
-const users = {
-  users_list: [
-    { id: "xyz789", name: "Charlie", job: "Janitor" },
-    { id: "abc123", name: "Mac", job: "Bouncer" },
-    { id: "ppp222", name: "Mac", job: "Professor" },
-    { id: "yat999", name: "Dee", job: "Aspiring actress" },
-    { id: "zap555", name: "Dennis", job: "Bartender" }
-  ],
-};
+app.use(express.json());
 
+// basic routes
 app.get("/", (req, res) => {
   res.send("Hello from Express backend!");
 });
@@ -24,38 +31,68 @@ app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello API", status: "ok" });
 });
 
-app.get("/users", (req, res) => {
-  res.json(users);
-});
+/**
+ * GET /users
+ * Optional query params:
+ *   /users?name=Mac
+ *   /users?job=Professor
+ *   /users?name=Mac&job=Professor
+ */
+app.get("/users", async (req, res) => {
+  try {
+    const { name, job } = req.query;
 
-app.get("/users/:id", (req, res) => {
-  const userId = req.params.id;
-  const user = users.users_list.find(u => u.id === userId);
+    const filter = {};
+    if (name) filter.name = name;
+    if (job) filter.job = job;
 
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
+    const users = await User.find(filter);
+    res.json({ users_list: users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json(user);
 });
 
-app.post("/users", (req, res) => {
-  const newUser = req.body;
+// GET one user by Mongo _id
+app.get("/users/:id", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
 
-  users.users_list.push(newUser);
-  res.status(201).json(newUser);
-});
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-app.delete("/users/:id", (req, res) => {
-  const userId = req.params.id;
-  const index = users.users_list.findIndex(u => u.id === userId);
-
-  if (index === -1) {
-    return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    // invalid ObjectId, etc.
+    res.status(400).json({ error: err.message });
   }
+});
 
-  const deletedUser = users.users_list.splice(index, 1);
-  res.json(deletedUser);
+// POST create user in MongoDB
+app.post("/users", async (req, res) => {
+  try {
+    const { name, job } = req.body;
+
+    if (!name || !job) {
+      return res.status(400).json({ error: "name and job are required" });
+    }
+
+    const newUser = await User.create({ name, job });
+    res.status(201).json(newUser);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE user by Mongo _id
+app.delete("/users/:id", async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.sendStatus(204);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {
